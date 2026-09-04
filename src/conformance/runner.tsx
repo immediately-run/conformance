@@ -40,9 +40,21 @@ function detectHost(): { host: string; hostname: string } {
 }
 
 function readParams(): { mode: RunMode; role: ClientRole } {
-  const params = new URLSearchParams(typeof location !== 'undefined' ? location.search : '');
+  // The app runs inside the sandbox realm, whose own URL is
+  // `sandbox.<host>/index.html?href=<host URL>&…` — the host URL's query
+  // params are the app's, so parse them out of the `href` param (falling back
+  // to the frame's own query string in vite dev).
+  let search: string = typeof location !== 'undefined' ? location.search : '';
+  try {
+    const href = new URLSearchParams(search).get('href');
+    if (href) search = new URL(href).search;
+  } catch {
+    /* not a URL — fall through to location.search */
+  }
+  const params = new URLSearchParams(search);
   const rawMode = params.get('mode');
-  const mode: RunMode = rawMode === 'after-reload' ? 'after-reload' : rawMode === 'second-client' ? 'second-client' : 'baseline';
+  const mode: RunMode =
+    rawMode === 'after-reload' ? 'after-reload' : rawMode === 'second-client' ? 'second-client' : 'baseline';
   const role: ClientRole = params.get('role') === 'writer' ? 'writer' : 'reader';
   return { mode, role };
 }
