@@ -23,7 +23,11 @@ function detectHost(): { host: string; hostname: string } {
   if (hostname === 'immediately.run') return { host: 'prod', hostname };
   if (hostname === 'staging.immediately.run') return { host: 'staging', hostname };
   if (hostname === 'local.immediately.run') return { host: 'local', hostname };
-  if (import.meta.env.DEV) return { host: 'vite-dev', hostname };
+  // `import.meta.env` is a Vite-only inject and is UNDEFINED in the sandbox
+  // (the host transpiles the app without Vite's define) — guard before reading
+  // `.DEV` so the sandbox never throws on this line.
+  const viteEnv = (import.meta as unknown as { env?: { DEV?: boolean } }).env;
+  if (viteEnv?.DEV) return { host: 'vite-dev', hostname };
   return { host: 'other', hostname };
 }
 
