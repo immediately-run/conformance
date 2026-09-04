@@ -141,7 +141,12 @@ const platformProbes: ProbeDef[] = [
         const clicked = new Promise<boolean>((resolve) => {
           const onDone = () => {
             anchor.removeEventListener('click', onDone);
-            URL.revokeObjectURL(url);
+            // DO NOT revoke the object URL here: the browser starts the
+            // download AFTER the click event returns, and revoking inside the
+            // handler destroys the very URL the download needs
+            // ("Not allowed to load local resource: blob:null/…"). Revoke on
+            // the next tick instead, once the click has fully dispatched.
+            setTimeout(() => URL.revokeObjectURL(url), 5_000);
             resolve(true);
           };
           anchor.addEventListener('click', onDone);
