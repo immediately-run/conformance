@@ -149,10 +149,13 @@ const platformProbes: ProbeDef[] = [
 
         // A synthetic click never satisfies the user-activation gate (and must
         // not — §8.2), so the click has to come from the HOST SPEC as a trusted
-        // event. Until then the row is undetermined, with the anchor ready.
+        // event. Until then the row is undetermined, with the anchor ready. The
+        // wait is long because the spec clicks AFTER the other rows settle; the
+        // run-complete marker fires only when this row resolves, so the spec
+        // always has the anchor present to click.
         const racer = await Promise.race([
           clicked,
-          new Promise<false>((r) => setTimeout(() => r(false), 30_000)),
+          new Promise<false>((r) => setTimeout(() => r(false), 180_000)),
         ]);
         if (racer) {
           anchor.remove();
