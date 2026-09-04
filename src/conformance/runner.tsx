@@ -22,7 +22,15 @@ function detectHost(): { host: string; hostname: string } {
   const hostname = typeof location !== 'undefined' ? location.hostname : 'unknown';
   if (hostname === 'immediately.run') return { host: 'prod', hostname };
   if (hostname === 'staging.immediately.run') return { host: 'staging', hostname };
-  if (hostname === 'local.immediately.run') return { host: 'local', hostname };
+  // The app runs inside the sandbox realm, whose hostname is the sandbox origin
+  // (sandbox.local.immediately.run / sandbox-m3… / sandbox.immediately.run), so
+  // classify by the realm's parent, not the iframe's own host.
+  if (hostname === 'local.immediately.run' || hostname.endsWith('.local.immediately.run')) {
+    return { host: 'local', hostname };
+  }
+  if (hostname === 'sandbox.immediately.run' || hostname.endsWith('.immediately.run')) {
+    return { host: 'prod', hostname };
+  }
   // `import.meta.env` is a Vite-only inject and is UNDEFINED in the sandbox
   // (the host transpiles the app without Vite's define) — guard before reading
   // `.DEV` so the sandbox never throws on this line.
@@ -72,7 +80,12 @@ export function ConformanceRunner() {
       _settings: {},
     };
     (async () => {
-      for (const probe of PROBES) {
+      // The download probe holds ITS row open for a trusted click the spec
+      // makes AFTER the run otherwise completes — so it runs last, and
+      // completion (conformance-done) fires when every OTHER probe has
+      // resolved. Its row still flips to pass when the click lands.
+      const ordered = [...PROBES.filter((p) => p.id !== 'platform.blob-download'), ...PROBES.filter((p) => p.id === 'platform.blob-download')];
+      for (const probe of ordered) {
         if (!probe.modes.includes(mode)) continue;
         if (cancelled) return;
         let result: ProbeResult;
@@ -88,11 +101,11 @@ export function ConformanceRunner() {
         }
         if (cancelled) return;
         setResults((prev) => ({ ...prev, [probe.id]: result }));
+        if (probe.id !== 'platform.blob-download') {
+          setDone(true);
+        }
       }
-      if (!cancelled) {
-        setDone(true);
-        setEndedAt(Date.now());
-      }
+      if (!cancelled) setEndedAt(Date.now());
     })();
     return () => {
       cancelled = true;
@@ -121,7 +134,7 @@ export function ConformanceRunner() {
         </p>
         <p className="env">
           env: {env.host} ({env.hostname}) · mode: {mode}
-          {mode === 'second-client' ? ` · role: ${role}` : ''} · sdk: {pkg.version}
+          {mode === 'second-client' ? ` · role: ${role}` : ''} · sdk: {env.sdkDependency} (pkg {pkg.version})
         </p>
         <AuthBanner auth={auth} />
       </header>
